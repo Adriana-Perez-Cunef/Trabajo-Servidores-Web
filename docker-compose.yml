@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-hive}
+      POSTGRES_DB: hive
+    volumes:
+      - hive-db:/var/lib/postgresql/data
+      # El esquema se crea automáticamente la primera vez
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hive -d hive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: postgres://hive:${DB_PASSWORD:-hive}@db:5432/hive
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en el archivo .env}
+      JWT_EXPIRES_IN: 2h
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-HiveAdmin123!}
+    ports:
+      - "3000:3000"
+
+volumes:
+  hive-db:

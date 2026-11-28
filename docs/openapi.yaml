@@ -1,0 +1,665 @@
+openapi: 3.0.3
+info:
+  title: HIVE API
+  version: 1.0.0
+  description: API de HIVE, red social de eventos y discotecas. Inicia sesión en /auth/login y pulsa Authorize con el token. Usuarios demo (contraseña Demo1234!) claudia@hive.local, alvaro@hive.local, sofia@hive.local.
+servers:
+- url: http://localhost:3000/api
+tags:
+- name: Auth
+- name: Eventos
+- name: Usuarios
+- name: Seguimiento
+- name: Admin
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum:
+          - user
+          - admin
+        fullName:
+          type: string
+        bio:
+          type: string
+        isPrivate:
+          type: boolean
+        allowRequests:
+          type: boolean
+        shareActivity:
+          type: boolean
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        venue:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        priceTier:
+          type: integer
+          minimum: 1
+          maximum: 3
+          description: 1 = $, 2 = $$, 3 = $$$
+        genre:
+          type: string
+        description:
+          type: string
+        creatorId:
+          type: integer
+        creatorUsername:
+          type: string
+        attendees:
+          type: integer
+        going:
+          type: boolean
+          description: El usuario autenticado asistirá
+        friendsGoing:
+          type: integer
+          description: Seguidos aceptados que asistirán y comparten actividad
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        fullName:
+          type: string
+        relation:
+          type: string
+          enum:
+          - none
+          - pending
+          - accepted
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+  responses:
+    BadRequest:
+      description: Datos no válidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Token ausente, inválido o caducado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Sin permisos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+paths:
+  /auth/register:
+    post:
+      tags:
+      - Auth
+      summary: Crear cuenta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - username
+              - email
+              - password
+              - confirmPassword
+              properties:
+                username:
+                  type: string
+                  example: lucia_23
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                confirmPassword:
+                  type: string
+      responses:
+        '201':
+          description: Cuenta creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Usuario o correo ya registrados
+  /auth/login:
+    post:
+      tags:
+      - Auth
+      summary: Iniciar sesión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Credenciales incorrectas
+  /events:
+    get:
+      tags:
+      - Eventos
+      summary: Buscar eventos con filtros
+      description: Sin `from` ni `past` devuelve solo eventos próximos.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: q
+        in: query
+        schema:
+          type: string
+        description: Texto en nombre
+        sala: null
+        género o dirección: null
+      - name: from
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: price
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 3
+      - name: city
+        in: query
+        schema:
+          type: string
+      - name: order
+        in: query
+        schema:
+          type: string
+          enum:
+          - date
+          - popular
+          - friends
+          - recent
+      - name: past
+        in: query
+        schema:
+          type: string
+          enum:
+          - '0'
+          - '1'
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+      responses:
+        '200':
+          description: Lista de eventos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+      - Eventos
+      summary: Crear un evento
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - title
+              - venue
+              - city
+              - startsAt
+              properties:
+                title:
+                  type: string
+                venue:
+                  type: string
+                address:
+                  type: string
+                city:
+                  type: string
+                startsAt:
+                  type: string
+                  format: date-time
+                priceTier:
+                  type: integer
+                  minimum: 1
+                  maximum: 3
+                genre:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Evento creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event:
+                    $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /events/home:
+    get:
+      tags:
+      - Eventos
+      summary: Pantalla de inicio (evento del día, recomendados y planes de amigos)
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Secciones de inicio
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  today:
+                    $ref: '#/components/schemas/Event'
+                  recommended:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  friends:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /events/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    get:
+      tags:
+      - Eventos
+      summary: Detalle de un evento y amigos que asisten
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Evento
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event:
+                    $ref: '#/components/schemas/Event'
+                  friendsGoingUsers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+      - Eventos
+      summary: Borrar evento (solo su creador o un admin)
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: Evento borrado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /events/{id}/attend:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    post:
+      tags:
+      - Eventos
+      summary: Marcar que asistiré
+      security:
+      - bearerAuth: []
+      responses:
+        '201':
+          description: Asistencia registrada
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+      - Eventos
+      summary: Cancelar mi asistencia
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: Asistencia cancelada
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /users/me:
+    get:
+      tags:
+      - Usuarios
+      summary: Mi cuenta
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags:
+      - Usuarios
+      summary: Editar perfil
+      security:
+      - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                fullName:
+                  type: string
+                bio:
+                  type: string
+                  maxLength: 160
+      responses:
+        '200':
+          description: Perfil actualizado
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Nombre de usuario en uso
+  /users/me/settings:
+    patch:
+      tags:
+      - Usuarios
+      summary: Ajustes de privacidad
+      security:
+      - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isPrivate:
+                  type: boolean
+                  description: Las solicitudes de seguimiento requieren aprobación
+                allowRequests:
+                  type: boolean
+                  description: Si es falso
+                  nadie puede seguirte: null
+                shareActivity:
+                  type: boolean
+                  description: Mostrar a qué eventos asistes
+      responses:
+        '200':
+          description: Ajustes actualizados
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /users/me/friends:
+    get:
+      tags:
+      - Seguimiento
+      summary: Usuarios que sigo, con su próximo evento
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de amigos y número de solicitudes pendientes
+  /users/me/requests:
+    get:
+      tags:
+      - Seguimiento
+      summary: Solicitudes de seguimiento pendientes
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Solicitudes pendientes
+  /users/me/requests/{id}/accept:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    post:
+      tags:
+      - Seguimiento
+      summary: Aceptar la solicitud del usuario {id}
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Solicitud aceptada
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/me/requests/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    delete:
+      tags:
+      - Seguimiento
+      summary: Rechazar la solicitud del usuario {id}
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: Solicitud eliminada
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/search:
+    get:
+      tags:
+      - Usuarios
+      summary: Buscar personas por nombre de usuario o nombre
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 2
+      responses:
+        '200':
+          description: Personas encontradas, con el estado de seguimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /users/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    get:
+      tags:
+      - Usuarios
+      summary: Perfil de un usuario
+      description: 'En cuentas privadas que no sigo solo se ve la información básica.
+
+        Si el usuario no comparte su actividad, no se devuelven sus eventos.
+
+        '
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil
+          contadores y eventos (si hay permiso): null
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/{id}/follow:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    post:
+      tags:
+      - Seguimiento
+      summary: Seguir a un usuario
+      description: En cuentas privadas la solicitud queda `pending` hasta que el usuario la acepte.
+      security:
+      - bearerAuth: []
+      responses:
+        '201':
+          description: 'Solicitud creada (status: accepted o pending)'
+        '403':
+          description: El usuario no acepta solicitudes
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+      - Seguimiento
+      summary: Dejar de seguir o cancelar la solicitud
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: Hecho
+  /admin/users:
+    get:
+      tags:
+      - Admin
+      summary: Listar usuarios (solo admin)
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de usuarios
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/users/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    delete:
+      tags:
+      - Admin
+      summary: Eliminar un usuario y su contenido (solo admin)
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: Usuario eliminado
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
